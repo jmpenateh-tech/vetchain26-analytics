@@ -1,10 +1,11 @@
 import "dotenv/config";
 import express from "express";
-import { pool, initDb, consume, bodyDefault, installErrorHandlers } from "./common.js";
+import { pool, initDb, consume, bodyDefault, installErrorHandlers, authenticate, auditTrail, requireRole } from "./common.js";
 
 const app = express();
 const PORT = process.env.PORT || 3009;
 
+app.disable("x-powered-by");
 app.use(express.json());
 app.use(bodyDefault);
 
@@ -43,6 +44,12 @@ app.get("/health", async (_, res) => {
   try { await pool.query("select 1"); res.json({ status: "ok" }); }
   catch { res.status(503).json({ status: "down" }); }
 });
+
+// 2.7: sesión obligatoria (C1); la analítica es solo para el administrador (M1).
+// 2.8: registro de auditoría (va antes de authenticate para anotar también los 401).
+app.use(auditTrail("analytics", []));
+app.use(authenticate);
+app.use(requireRole("admin"));
 
 // El gateway quita el prefijo /analytics, así que el servicio expone /transit-time, etc.
 // Las rutas antiguas (/analytics/transit-time, etc.) se mantienen por compatibilidad.
